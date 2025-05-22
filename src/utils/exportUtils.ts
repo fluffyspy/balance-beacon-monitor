@@ -17,22 +17,50 @@ export const exportToCSV = (data: SensorData[]): void => {
   
   // Create CSV header
   const headers = [
-    'timestamp',
-    'accelerometer_x', 'accelerometer_y', 'accelerometer_z',
-    'gyroscope_x', 'gyroscope_y', 'gyroscope_z',
-    'magnetometer_x', 'magnetometer_y', 'magnetometer_z'
+    'Timestamp',
+    'Sensor',
+    'X',
+    'Y',
+    'Z'
   ];
   
-  // Create CSV rows
+  // Create CSV rows using the required format
   const csvRows = [
-    headers.join(','),
-    ...data.map(record => [
-      record.timestamp,
-      record.accelerometer.x, record.accelerometer.y, record.accelerometer.z,
-      record.gyroscope.x, record.gyroscope.y, record.gyroscope.z,
-      record.magnetometer.x, record.magnetometer.y, record.magnetometer.z
-    ].join(','))
+    headers.join(',')
   ];
+  
+  // Add accelerometer readings
+  data.forEach(record => {
+    csvRows.push([
+      record.timestamp,
+      'Accelerometer',
+      record.accelerometer.x.toFixed(2),
+      record.accelerometer.y.toFixed(2),
+      record.accelerometer.z.toFixed(2)
+    ].join(','));
+  });
+  
+  // Add gyroscope readings
+  data.forEach(record => {
+    csvRows.push([
+      record.timestamp,
+      'Gyroscope',
+      record.gyroscope.x.toFixed(2),
+      record.gyroscope.y.toFixed(2),
+      record.gyroscope.z.toFixed(2)
+    ].join(','));
+  });
+  
+  // Add magnetometer readings
+  data.forEach(record => {
+    csvRows.push([
+      record.timestamp,
+      'Magnetometer',
+      record.magnetometer.x.toFixed(2),
+      record.magnetometer.y.toFixed(2),
+      record.magnetometer.z.toFixed(2)
+    ].join(','));
+  });
   
   // Create CSV content
   const csvContent = csvRows.join('\n');
