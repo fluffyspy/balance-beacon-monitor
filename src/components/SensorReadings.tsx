@@ -31,7 +31,7 @@ const SensorReadings: React.FC<SensorReadingsProps> = ({
     return (
       <div className={cn("p-3 bg-gray-100 rounded-lg", className)}>
         <h3 className="font-medium text-gray-700 text-sm">{title}</h3>
-        <p className="text-xs text-amber-500">Permission required</p>
+        <p className="text-xs text-amber-500">Permission required - please click "Grant Permissions"</p>
       </div>
     );
   }

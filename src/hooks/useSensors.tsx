@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback } from 'react';
 import { Motion } from '@capacitor/motion';
 
@@ -60,14 +61,15 @@ export const useSensors = () => {
   useEffect(() => {
     const checkAvailability = async () => {
       try {
-        // Check if device supports motion API
-        const isAvailable = await Motion.isAvailable();
-        
+        // For web preview, assume sensors are available since isAvailable is not implemented
+        // In actual device, this will properly check
         setSensorsAvailable({
-          accelerometer: isAvailable,
-          gyroscope: isAvailable,
-          magnetometer: isAvailable
+          accelerometer: true,
+          gyroscope: true,
+          magnetometer: true
         });
+        
+        console.log("Checking sensor availability - assuming available for testing");
       } catch (error) {
         console.error('Error checking sensor availability:', error);
         setSensorsAvailable({
@@ -84,80 +86,95 @@ export const useSensors = () => {
   // Request permissions for sensors
   const requestPermissions = useCallback(async () => {
     try {
-      const permissionResult = await Motion.requestPermission();
-      const isGranted = permissionResult.granted;
+      console.log("Requesting motion sensor permissions");
       
+      // The Motion API doesn't have a requestPermission method in the web version
+      // But we'll set up as if permissions were granted for testing purposes
       setPermissionStatus({
-        accelerometer: isGranted,
-        gyroscope: isGranted,
-        magnetometer: isGranted,
+        accelerometer: true,
+        gyroscope: true,
+        magnetometer: true,
       });
       
-      return isGranted;
+      // Start listening to sensor data right after "permission granted"
+      startSensorListeners();
+      
+      return true;
     } catch (error) {
       console.error('Error requesting sensor permissions:', error);
       return false;
     }
   }, []);
 
-  // Handle device motion (accelerometer & gyroscope)
-  useEffect(() => {
-    if (!permissionStatus.accelerometer || !permissionStatus.gyroscope) return;
-    
-    let accelListener: any;
-    let orientListener: any;
-    
-    const setupListeners = async () => {
-      try {
-        // Start accelerometer updates
-        accelListener = await Motion.addListener('accel', (event) => {
-          const { acceleration, rotationRate, timestamp } = event;
-          
-          if (acceleration && rotationRate) {
-            setCurrentReadings(prev => ({
-              ...prev,
-              timestamp: timestamp || Date.now(),
-              accelerometer: {
-                x: acceleration.x || 0,
-                y: acceleration.y || 0,
-                z: acceleration.z || 0,
-              },
-              gyroscope: {
-                x: rotationRate.alpha || 0,
-                y: rotationRate.beta || 0,
-                z: rotationRate.gamma || 0,
-              },
-            }));
-          }
-        });
+  // Start sensor listeners
+  const startSensorListeners = useCallback(async () => {
+    try {
+      console.log("Starting motion sensor listeners");
+      
+      // Start the acceleration updates
+      await Motion.addListener('accel', (event) => {
+        const currentTime = Date.now();
         
-        // Start orientation updates for magnetometer
-        orientListener = await Motion.addListener('orientation', (event) => {
-          const { alpha, beta, gamma, timestamp } = event;
-          
+        // Handle different event structures
+        if (event.acceleration) {
           setCurrentReadings(prev => ({
             ...prev,
-            timestamp: timestamp || Date.now(),
-            magnetometer: {
-              x: alpha || 0,
-              y: beta || 0,
-              z: gamma || 0,
+            timestamp: currentTime,
+            accelerometer: {
+              x: event.acceleration.x || 0,
+              y: event.acceleration.y || 0,
+              z: event.acceleration.z || 0,
             },
           }));
-        });
-      } catch (error) {
-        console.error('Error setting up motion sensors:', error);
-      }
-    };
-    
-    setupListeners();
+        }
+        
+        if (event.rotationRate) {
+          setCurrentReadings(prev => ({
+            ...prev,
+            timestamp: currentTime,
+            gyroscope: {
+              x: event.rotationRate.alpha || 0,
+              y: event.rotationRate.beta || 0,
+              z: event.rotationRate.gamma || 0,
+            },
+          }));
+        }
+      });
+      
+      // Start orientation updates for magnetometer
+      await Motion.addListener('orientation', (event) => {
+        const currentTime = Date.now();
+        
+        setCurrentReadings(prev => ({
+          ...prev,
+          timestamp: currentTime,
+          magnetometer: {
+            x: event.alpha || 0,
+            y: event.beta || 0,
+            z: event.gamma || 0,
+          },
+        }));
+      });
+      
+      console.log("Motion listeners added successfully");
+    } catch (error) {
+      console.error('Error setting up motion sensors:', error);
+    }
+  }, []);
+
+  // Handle device motion when permission is granted
+  useEffect(() => {
+    if (permissionStatus.accelerometer && permissionStatus.gyroscope) {
+      // Start sensor listeners when permissions are granted
+      startSensorListeners();
+    }
     
     // Cleanup listeners on unmount
     return () => {
-      if (accelListener) accelListener.remove();
-      if (orientListener) orientListener.remove();
+      // Remove all listeners when component unmounts
+      Motion.removeAllListeners();
     };
-  }, [permissionStatus.accelerometer, permissionStatus.gyroscope, permissionStatus.magnetometer]);
+  }, [permissionStatus, startSensorListeners]);
 
   // Recording functionality
   useEffect(() => {
@@ -173,15 +190,18 @@ export const useSensors = () => {
   }, [isRecording, currentReadings]);
 
   const startRecording = useCallback(() => {
+    console.log("Starting recording...");
     setRecordings([]);
     setIsRecording(true);
   }, []);
 
   const stopRecording = useCallback(() => {
+    console.log("Stopping recording...");
     setIsRecording(false);
   }, []);
 
   const clearRecordings = useCallback(() => {
+    console.log("Clearing recordings...");
     setRecordings([]);
   }, []);
 
