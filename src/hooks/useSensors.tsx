@@ -1,5 +1,5 @@
-
 import { useState, useEffect, useCallback } from 'react';
+import { Motion } from '@capacitor/motion';
 
 export type SensorData = {
   timestamp: number;
@@ -58,45 +58,42 @@ export const useSensors = () => {
 
   // Check if sensors are available
   useEffect(() => {
-    // Check accelerometer
-    if ('DeviceMotionEvent' in window) {
-      setSensorsAvailable(prev => ({ ...prev, accelerometer: true, gyroscope: true }));
-    }
-
-    // Check magnetometer
-    if ('DeviceOrientationEvent' in window) {
-      setSensorsAvailable(prev => ({ ...prev, magnetometer: true }));
-    }
+    const checkAvailability = async () => {
+      try {
+        // Check if device supports motion API
+        const isAvailable = await Motion.isAvailable();
+        
+        setSensorsAvailable({
+          accelerometer: isAvailable,
+          gyroscope: isAvailable,
+          magnetometer: isAvailable
+        });
+      } catch (error) {
+        console.error('Error checking sensor availability:', error);
+        setSensorsAvailable({
+          accelerometer: false,
+          gyroscope: false,
+          magnetometer: false
+        });
+      }
+    };
+    
+    checkAvailability();
   }, []);
 
   // Request permissions for sensors
   const requestPermissions = useCallback(async () => {
     try {
-      // For iOS 13+ devices
-      if (
-        DeviceMotionEvent &&
-        typeof (DeviceMotionEvent as any).requestPermission === 'function'
-      ) {
-        const motionPermission = await (DeviceMotionEvent as any).requestPermission();
-        const orientPermission = await (DeviceOrientationEvent as any).requestPermission();
-        
-        setPermissionStatus({
-          accelerometer: motionPermission === 'granted',
-          gyroscope: motionPermission === 'granted',
-          magnetometer: orientPermission === 'granted',
-        });
-        
-        return motionPermission === 'granted' && orientPermission === 'granted';
-      }
+      const permissionResult = await Motion.requestPermission();
+      const isGranted = permissionResult.granted;
       
-      // For non-iOS or older iOS that don't require permission
       setPermissionStatus({
-        accelerometer: true,
-        gyroscope: true,
-        magnetometer: true,
+        accelerometer: isGranted,
+        gyroscope: isGranted,
+        magnetometer: isGranted,
       });
       
-      return true;
+      return isGranted;
     } catch (error) {
       console.error('Error requesting sensor permissions:', error);
       return false;
@@ -106,59 +103,61 @@ export const useSensors = () => {
   // Handle device motion (accelerometer & gyroscope)
   useEffect(() => {
     if (!permissionStatus.accelerometer || !permissionStatus.gyroscope) return;
-
-    const handleMotion = (event: DeviceMotionEvent) => {
-      const { acceleration, rotationRate, timeStamp } = event;
-      
-      if (acceleration && rotationRate) {
-        setCurrentReadings(prev => ({
-          ...prev,
-          timestamp: timeStamp || Date.now(),
-          accelerometer: {
-            x: acceleration.x || 0,
-            y: acceleration.y || 0,
-            z: acceleration.z || 0,
-          },
-          gyroscope: {
-            x: rotationRate.beta || 0,
-            y: rotationRate.gamma || 0,
-            z: rotationRate.alpha || 0,
-          },
-        }));
+    
+    let accelListener: any;
+    let orientListener: any;
+    
+    const setupListeners = async () => {
+      try {
+        // Start accelerometer updates
+        accelListener = await Motion.addListener('accel', (event) => {
+          const { acceleration, rotationRate, timestamp } = event;
+          
+          if (acceleration && rotationRate) {
+            setCurrentReadings(prev => ({
+              ...prev,
+              timestamp: timestamp || Date.now(),
+              accelerometer: {
+                x: acceleration.x || 0,
+                y: acceleration.y || 0,
+                z: acceleration.z || 0,
+              },
+              gyroscope: {
+                x: rotationRate.alpha || 0,
+                y: rotationRate.beta || 0,
+                z: rotationRate.gamma || 0,
+              },
+            }));
+          }
+        });
+        
+        // Start orientation updates for magnetometer
+        orientListener = await Motion.addListener('orientation', (event) => {
+          const { alpha, beta, gamma, timestamp } = event;
+          
+          setCurrentReadings(prev => ({
+            ...prev,
+            timestamp: timestamp || Date.now(),
+            magnetometer: {
+              x: alpha || 0,
+              y: beta || 0,
+              z: gamma || 0,
+            },
+          }));
+        });
+      } catch (error) {
+        console.error('Error setting up motion sensors:', error);
       }
     };
-
-    window.addEventListener('devicemotion', handleMotion);
     
-    return () => {
-      window.removeEventListener('devicemotion', handleMotion);
-    };
-  }, [permissionStatus.accelerometer, permissionStatus.gyroscope]);
-
-  // Handle device orientation (magnetometer)
-  useEffect(() => {
-    if (!permissionStatus.magnetometer) return;
-
-    const handleOrientation = (event: DeviceOrientationEvent) => {
-      const { alpha, beta, gamma, timeStamp } = event;
-      
-      setCurrentReadings(prev => ({
-        ...prev,
-        timestamp: timeStamp || Date.now(),
-        magnetometer: {
-          x: alpha || 0,
-          y: beta || 0,
-          z: gamma || 0,
-        },
-      }));
-    };
-
-    window.addEventListener('deviceorientation', handleOrientation);
+    setupListeners();
     
+    // Cleanup listeners on unmount
     return () => {
-      window.removeEventListener('deviceorientation', handleOrientation);
+      if (accelListener) accelListener.remove();
+      if (orientListener) orientListener.remove();
     };
-  }, [permissionStatus.magnetometer]);
+  }, [permissionStatus.accelerometer, permissionStatus.gyroscope, permissionStatus.magnetometer]);
 
   // Recording functionality
   useEffect(() => {

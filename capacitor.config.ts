@@ -13,6 +13,12 @@ const config: CapacitorConfig = {
     SplashScreen: {
       launchShowDuration: 2000,
     },
+    Motion: {
+      deviceOrientation: true,
+      acceleration: true,
+      accelerationIncludingGravity: true,
+      rotationRate: true,
+    }
   },
 };
 
