@@ -16,7 +16,8 @@ const config: CapacitorConfig = {
       rotationRate: true,
     },
     Filesystem: {
-      // Allow reading/writing to Documents directory
+      // Configure filesystem access
+      directory: 'Documents',
     },
     Share: {
       // Enable sharing functionality
