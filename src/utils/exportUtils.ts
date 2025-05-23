@@ -83,45 +83,94 @@ export const analyzeBalance = (data: SensorData[]): {
   status: 'normal' | 'abnormal' | 'insufficient';
   stability: number;
   message: string;
+  details: {
+    accelerometerVariability: number;
+    gyroscopeVariability: number;
+    totalMovement: number;
+    balanceScore: number;
+  };
 } => {
-  if (data.length < 10) {
+  if (data.length < 30) { // At least 3 seconds of data
     return {
       status: 'insufficient',
       stability: 0,
-      message: 'Insufficient data for analysis. Please record for at least 1 second.'
+      message: 'Insufficient data for analysis. Please record for at least 3 seconds.',
+      details: {
+        accelerometerVariability: 0,
+        gyroscopeVariability: 0,
+        totalMovement: 0,
+        balanceScore: 0,
+      }
     };
   }
   
-  // Calculate standard deviation of accelerometer readings as a simple measure of stability
+  // Calculate variability metrics
   const accelX = data.map(d => d.accelerometer.x);
   const accelY = data.map(d => d.accelerometer.y);
   const accelZ = data.map(d => d.accelerometer.z);
   
-  const stdevX = calculateStandardDeviation(accelX);
-  const stdevY = calculateStandardDeviation(accelY);
-  const stdevZ = calculateStandardDeviation(accelZ);
+  const gyroX = data.map(d => d.gyroscope.x);
+  const gyroY = data.map(d => d.gyroscope.y);
+  const gyroZ = data.map(d => d.gyroscope.z);
   
-  // Calculate combined stability score (lower is more stable)
-  const stabilityScore = (stdevX + stdevY + stdevZ) / 3;
+  // Calculate standard deviations
+  const accelStdevX = calculateStandardDeviation(accelX);
+  const accelStdevY = calculateStandardDeviation(accelY);
+  const accelStdevZ = calculateStandardDeviation(accelZ);
   
-  // Normalize to a 0-100 scale where 100 is perfectly stable
-  // This is a simplified model and would need calibration with real medical data
-  const normalizedStability = Math.max(0, Math.min(100, 100 - (stabilityScore * 10)));
+  const gyroStdevX = calculateStandardDeviation(gyroX);
+  const gyroStdevY = calculateStandardDeviation(gyroY);
+  const gyroStdevZ = calculateStandardDeviation(gyroZ);
   
-  // Simple threshold classification
-  if (normalizedStability > 70) {
-    return {
-      status: 'normal',
-      stability: normalizedStability,
-      message: 'Balance appears normal. Good stability detected.'
-    };
-  } else {
-    return {
-      status: 'abnormal',
-      stability: normalizedStability,
-      message: 'Potential balance issues detected. Consider consulting a healthcare professional.'
-    };
-  }
+  // Combined metrics
+  const accelerometerVariability = (accelStdevX + accelStdevY + accelStdevZ) / 3;
+  const gyroscopeVariability = (gyroStdevX + gyroStdevY + gyroStdevZ) / 3;
+  
+  // Calculate total movement (magnitude of acceleration changes)
+  const totalMovement = data.reduce((sum, reading, index) => {
+    if (index === 0) return 0;
+    const prevReading = data[index - 1];
+    const deltaX = Math.abs(reading.accelerometer.x - prevReading.accelerometer.x);
+    const deltaY = Math.abs(reading.accelerometer.y - prevReading.accelerometer.y);
+    const deltaZ = Math.abs(reading.accelerometer.z - prevReading.accelerometer.z);
+    return sum + Math.sqrt(deltaX * deltaX + deltaY * deltaY + deltaZ * deltaZ);
+  }, 0) / data.length;
+  
+  // Define thresholds for abnormal balance
+  const ACCEL_THRESHOLD = 2.0; // High acceleration variability indicates instability
+  const GYRO_THRESHOLD = 1.5;  // High gyroscope variability indicates poor balance
+  const MOVEMENT_THRESHOLD = 1.0; // High total movement indicates difficulty maintaining position
+  
+  // Calculate balance score (0-100, where 100 is perfect balance)
+  const accelScore = Math.max(0, 100 - (accelerometerVariability / ACCEL_THRESHOLD) * 50);
+  const gyroScore = Math.max(0, 100 - (gyroscopeVariability / GYRO_THRESHOLD) * 50);
+  const movementScore = Math.max(0, 100 - (totalMovement / MOVEMENT_THRESHOLD) * 50);
+  
+  const balanceScore = (accelScore + gyroScore + movementScore) / 3;
+  
+  // Determine status based on thresholds
+  const isAbnormal = 
+    accelerometerVariability > ACCEL_THRESHOLD ||
+    gyroscopeVariability > GYRO_THRESHOLD ||
+    totalMovement > MOVEMENT_THRESHOLD ||
+    balanceScore < 60;
+  
+  const status = isAbnormal ? 'abnormal' : 'normal';
+  const message = isAbnormal 
+    ? 'Potential balance issues detected. High movement variability suggests difficulty maintaining stable posture. Consider consulting a healthcare professional.'
+    : 'Balance appears normal. Good stability and minimal excessive movement detected.';
+  
+  return {
+    status,
+    stability: balanceScore,
+    message,
+    details: {
+      accelerometerVariability,
+      gyroscopeVariability,
+      totalMovement,
+      balanceScore,
+    }
+  };
 };
 
 function calculateStandardDeviation(values: number[]): number {

@@ -7,10 +7,13 @@ import {
   FileSpreadsheet, 
   RefreshCcw, 
   AlertTriangle, 
-  CheckCircle2
+  CheckCircle2,
+  Download
 } from 'lucide-react';
 import { SensorData } from '@/hooks/useSensors';
 import { exportToCSV, analyzeBalance } from '@/utils/exportUtils';
+import { saveCSVToMobileStorage, formatDateForFilename } from '@/utils/fileStorage';
+import { useToast } from '@/hooks/use-toast';
 
 interface RecordingControlsProps {
   isRecording: boolean;
@@ -31,19 +34,54 @@ const RecordingControls: React.FC<RecordingControlsProps> = ({
   permissionsGranted,
   requestPermissions,
 }) => {
+  const { toast } = useToast();
   const [analysisResult, setAnalysisResult] = React.useState<{
     status: 'normal' | 'abnormal' | 'insufficient';
     stability: number;
     message: string;
+    details: {
+      accelerometerVariability: number;
+      gyroscopeVariability: number;
+      totalMovement: number;
+      balanceScore: number;
+    };
   } | null>(null);
 
-  const handleExport = () => {
+  const handleExportWeb = () => {
     exportToCSV(recordings);
+    toast({
+      title: "Export Complete",
+      description: "CSV file downloaded to your Downloads folder",
+    });
+  };
+
+  const handleSaveToMobile = async () => {
+    const filename = formatDateForFilename();
+    const success = await saveCSVToMobileStorage(recordings, filename);
+    
+    if (success) {
+      toast({
+        title: "File Saved",
+        description: `Balance data saved to device storage: ${filename}`,
+      });
+    } else {
+      toast({
+        title: "Save Failed",
+        description: "Could not save file to device storage",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleAnalyze = () => {
     const result = analyzeBalance(recordings);
     setAnalysisResult(result);
+    
+    // Show toast with quick result
+    toast({
+      title: "Analysis Complete",
+      description: `Balance status: ${result.status.charAt(0).toUpperCase() + result.status.slice(1)} (Score: ${result.stability.toFixed(1)}%)`,
+    });
   };
 
   return (
@@ -79,7 +117,14 @@ const RecordingControls: React.FC<RecordingControlsProps> = ({
         {recordings.length > 0 && !isRecording && (
           <>
             <Button 
-              onClick={handleExport}
+              onClick={handleSaveToMobile}
+              variant="default"
+              className="bg-green-600 hover:bg-green-700"
+            >
+              <Download className="w-4 h-4 mr-2" /> Save to Device
+            </Button>
+            <Button 
+              onClick={handleExportWeb}
               variant="outline"
             >
               <FileSpreadsheet className="w-4 h-4 mr-2" /> Export CSV
@@ -123,10 +168,10 @@ const RecordingControls: React.FC<RecordingControlsProps> = ({
           analysisResult.status === 'normal' 
             ? 'bg-green-50 border-green-200' 
             : analysisResult.status === 'abnormal'
-              ? 'bg-amber-50 border-amber-200'
+              ? 'bg-red-50 border-red-200'
               : 'bg-gray-50 border-gray-200'
         }`}>
-          <h3 className="font-medium mb-2 text-gray-800">Balance Analysis</h3>
+          <h3 className="font-medium mb-2 text-gray-800">Balance Analysis Results</h3>
           <div className="space-y-2">
             <div className="flex justify-between items-center text-sm">
               <span className="text-gray-600">Status:</span>
@@ -134,7 +179,7 @@ const RecordingControls: React.FC<RecordingControlsProps> = ({
                 analysisResult.status === 'normal'
                   ? 'text-green-600'
                   : analysisResult.status === 'abnormal'
-                    ? 'text-amber-600'
+                    ? 'text-red-600'
                     : 'text-gray-600'
               }`}>
                 {analysisResult.status.charAt(0).toUpperCase() + analysisResult.status.slice(1)}
@@ -142,15 +187,38 @@ const RecordingControls: React.FC<RecordingControlsProps> = ({
             </div>
             
             {analysisResult.status !== 'insufficient' && (
-              <div className="flex justify-between items-center text-sm">
-                <span className="text-gray-600">Stability Score:</span>
-                <span className="font-medium">{analysisResult.stability.toFixed(1)}%</span>
-              </div>
+              <>
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-gray-600">Balance Score:</span>
+                  <span className="font-medium">{analysisResult.stability.toFixed(1)}%</span>
+                </div>
+                
+                <div className="mt-3 text-xs text-gray-600">
+                  <div className="flex justify-between">
+                    <span>Movement Variability:</span>
+                    <span>{analysisResult.details.accelerometerVariability.toFixed(3)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Rotation Stability:</span>
+                    <span>{analysisResult.details.gyroscopeVariability.toFixed(3)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Total Movement:</span>
+                    <span>{analysisResult.details.totalMovement.toFixed(3)}</span>
+                  </div>
+                </div>
+              </>
             )}
             
-            <p className="text-sm text-gray-700 italic">
+            <p className="text-sm text-gray-700 italic mt-2">
               {analysisResult.message}
             </p>
+            
+            {analysisResult.status === 'abnormal' && (
+              <div className="mt-2 p-2 bg-amber-100 rounded text-xs text-amber-800">
+                <strong>Recommendation:</strong> Consider consulting a healthcare professional for further evaluation.
+              </div>
+            )}
           </div>
         </div>
       )}

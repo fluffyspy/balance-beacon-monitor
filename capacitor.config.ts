@@ -14,6 +14,12 @@ const config: CapacitorConfig = {
       acceleration: true,
       accelerationIncludingGravity: true,
       rotationRate: true,
+    },
+    Filesystem: {
+      // Allow reading/writing to Documents directory
+    },
+    Share: {
+      // Enable sharing functionality
     }
   },
 };

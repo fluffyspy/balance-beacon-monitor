@@ -61,15 +61,13 @@ export const useSensors = () => {
   useEffect(() => {
     const checkAvailability = async () => {
       try {
-        // For web preview, assume sensors are available since isAvailable is not implemented
-        // In actual device, this will properly check
         setSensorsAvailable({
           accelerometer: true,
           gyroscope: true,
           magnetometer: true
         });
         
-        console.log("Checking sensor availability - assuming available for testing");
+        console.log("Sensors marked as available for mobile device");
       } catch (error) {
         console.error('Error checking sensor availability:', error);
         setSensorsAvailable({
@@ -88,17 +86,16 @@ export const useSensors = () => {
     try {
       console.log("Requesting motion sensor permissions");
       
-      // The Motion API doesn't have a requestPermission method in the web version
-      // But we'll set up as if permissions were granted for testing purposes
+      // Start listening immediately - Capacitor handles permissions automatically
+      await startSensorListeners();
+      
       setPermissionStatus({
         accelerometer: true,
         gyroscope: true,
         magnetometer: true,
       });
       
-      // Start listening to sensor data right after "permission granted"
-      startSensorListeners();
-      
+      console.log("Sensor permissions granted and listeners started");
       return true;
     } catch (error) {
       console.error('Error requesting sensor permissions:', error);
@@ -111,43 +108,38 @@ export const useSensors = () => {
     try {
       console.log("Starting motion sensor listeners");
       
-      // Start the acceleration updates
-      await Motion.addListener('accel', (event) => {
-        const currentTime = Date.now();
-        
-        // Handle different event structures
-        if (event.acceleration) {
-          setCurrentReadings(prev => ({
-            ...prev,
-            timestamp: currentTime,
-            accelerometer: {
-              x: event.acceleration.x || 0,
-              y: event.acceleration.y || 0,
-              z: event.acceleration.z || 0,
-            },
-          }));
-        }
-        
-        if (event.rotationRate) {
-          setCurrentReadings(prev => ({
-            ...prev,
-            timestamp: currentTime,
-            gyroscope: {
-              x: event.rotationRate.alpha || 0,
-              y: event.rotationRate.beta || 0,
-              z: event.rotationRate.gamma || 0,
-            },
-          }));
-        }
-      });
+      // Remove any existing listeners first
+      await Motion.removeAllListeners();
       
-      // Start orientation updates for magnetometer
-      await Motion.addListener('orientation', (event) => {
+      // Add acceleration listener
+      await Motion.addListener('accel', (event) => {
+        console.log("Acceleration data received:", event);
         const currentTime = Date.now();
         
         setCurrentReadings(prev => ({
           ...prev,
           timestamp: currentTime,
+          accelerometer: {
+            x: event.acceleration?.x || 0,
+            y: event.acceleration?.y || 0,
+            z: event.acceleration?.z || 0,
+          },
+        }));
+      });
+      
+      // Add orientation listener for gyroscope and magnetometer
+      await Motion.addListener('orientation', (event) => {
+        console.log("Orientation data received:", event);
+        const currentTime = Date.now();
+        
+        setCurrentReadings(prev => ({
+          ...prev,
+          timestamp: currentTime,
+          gyroscope: {
+            x: event.rotationRate?.alpha || 0,
+            y: event.rotationRate?.beta || 0,
+            z: event.rotationRate?.gamma || 0,
+          },
           magnetometer: {
             x: event.alpha || 0,
             y: event.beta || 0,
@@ -162,29 +154,22 @@ export const useSensors = () => {
     }
   }, []);
 
-  // Handle device motion when permission is granted
-  useEffect(() => {
-    if (permissionStatus.accelerometer && permissionStatus.gyroscope) {
-      // Start sensor listeners when permissions are granted
-      startSensorListeners();
-    }
-    
-    // Cleanup listeners on unmount
-    return () => {
-      // Remove all listeners when component unmounts
-      Motion.removeAllListeners();
-    };
-  }, [permissionStatus, startSensorListeners]);
-
-  // Recording functionality
+  // Recording functionality - capture data when recording
   useEffect(() => {
     if (!isRecording) return;
     
+    console.log("Recording started, capturing data every 100ms");
     const interval = setInterval(() => {
-      setRecordings(prev => [...prev, currentReadings]);
+      console.log("Capturing sensor data:", currentReadings);
+      setRecordings(prev => {
+        const newRecordings = [...prev, { ...currentReadings }];
+        console.log("Total recordings so far:", newRecordings.length);
+        return newRecordings;
+      });
     }, 100); // Record at 10Hz
     
     return () => {
+      console.log("Stopping recording interval");
       clearInterval(interval);
     };
   }, [isRecording, currentReadings]);
@@ -196,9 +181,9 @@ export const useSensors = () => {
   }, []);
 
   const stopRecording = useCallback(() => {
-    console.log("Stopping recording...");
+    console.log("Stopping recording... Total points:", recordings.length);
     setIsRecording(false);
-  }, []);
+  }, [recordings.length]);
 
   const clearRecordings = useCallback(() => {
     console.log("Clearing recordings...");
