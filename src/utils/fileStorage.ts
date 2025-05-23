@@ -1,7 +1,7 @@
 
 import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
 import { Share } from '@capacitor/share';
-import { SensorData } from '@/hooks/useSensors';
+import { SensorData } from '@/hooks/sensors/sensorTypes';
 
 export const saveCSVToMobileStorage = async (data: SensorData[], filename: string): Promise<boolean> => {
   try {

@@ -1,31 +1,10 @@
 
 import { useState, useEffect, useCallback } from 'react';
-import { Motion } from '@capacitor/motion';
+import { SensorData, SensorPermissionStatus, SensorAvailability } from './sensors/sensorTypes';
+import { startSensorListeners, removeSensorListeners } from './sensors/sensorListeners';
+import { checkSensorsAvailability, getInitialPermissionStatus } from './sensors/sensorPermissions';
 
-export type SensorData = {
-  timestamp: number;
-  accelerometer: {
-    x: number;
-    y: number;
-    z: number;
-  };
-  gyroscope: {
-    x: number;
-    y: number;
-    z: number;
-  };
-  magnetometer: {
-    x: number;
-    y: number;
-    z: number;
-  };
-};
-
-export type SensorReading = {
-  x: number;
-  y: number;
-  z: number;
-};
+export type { SensorData, SensorReading } from './sensors/sensorTypes';
 
 export const useSensors = () => {
   const [isRecording, setIsRecording] = useState<boolean>(false);
@@ -37,21 +16,11 @@ export const useSensors = () => {
     magnetometer: { x: 0, y: 0, z: 0 },
   });
   
-  const [permissionStatus, setPermissionStatus] = useState<{
-    accelerometer: boolean;
-    gyroscope: boolean;
-    magnetometer: boolean;
-  }>({
-    accelerometer: false,
-    gyroscope: false,
-    magnetometer: false,
-  });
+  const [permissionStatus, setPermissionStatus] = useState<SensorPermissionStatus>(
+    getInitialPermissionStatus()
+  );
 
-  const [sensorsAvailable, setSensorsAvailable] = useState<{
-    accelerometer: boolean;
-    gyroscope: boolean;
-    magnetometer: boolean;
-  }>({
+  const [sensorsAvailable, setSensorsAvailable] = useState<SensorAvailability>({
     accelerometer: false,
     gyroscope: false,
     magnetometer: false,
@@ -59,26 +28,17 @@ export const useSensors = () => {
 
   // Check if sensors are available
   useEffect(() => {
-    const checkAvailability = async () => {
-      try {
-        setSensorsAvailable({
-          accelerometer: true,
-          gyroscope: true,
-          magnetometer: true
-        });
-        
-        console.log("Sensors marked as available for mobile device");
-      } catch (error) {
-        console.error('Error checking sensor availability:', error);
-        setSensorsAvailable({
-          accelerometer: false,
-          gyroscope: false,
-          magnetometer: false
-        });
-      }
+    const initializeSensors = async () => {
+      const availability = await checkSensorsAvailability();
+      setSensorsAvailable(availability);
     };
     
-    checkAvailability();
+    initializeSensors();
+    
+    return () => {
+      // Clean up listeners when component unmounts
+      removeSensorListeners();
+    };
   }, []);
 
   // Request permissions for sensors
@@ -87,7 +47,7 @@ export const useSensors = () => {
       console.log("Requesting motion sensor permissions");
       
       // Start listening immediately - Capacitor handles permissions automatically
-      await startSensorListeners();
+      await startSensorListeners(setCurrentReadings);
       
       setPermissionStatus({
         accelerometer: true,
@@ -100,58 +60,6 @@ export const useSensors = () => {
     } catch (error) {
       console.error('Error requesting sensor permissions:', error);
       return false;
-    }
-  }, []);
-
-  // Start sensor listeners
-  const startSensorListeners = useCallback(async () => {
-    try {
-      console.log("Starting motion sensor listeners");
-      
-      // Remove any existing listeners first
-      await Motion.removeAllListeners();
-      
-      // Add acceleration listener
-      await Motion.addListener('accel', (event) => {
-        console.log("Acceleration data received:", event);
-        const currentTime = Date.now();
-        
-        setCurrentReadings(prev => ({
-          ...prev,
-          timestamp: currentTime,
-          accelerometer: {
-            x: event.acceleration?.x || 0,
-            y: event.acceleration?.y || 0,
-            z: event.acceleration?.z || 0,
-          },
-        }));
-      });
-      
-      // Add orientation listener for gyroscope and magnetometer
-      await Motion.addListener('orientation', (event) => {
-        console.log("Orientation data received:", event);
-        const currentTime = Date.now();
-        
-        setCurrentReadings(prev => ({
-          ...prev,
-          timestamp: currentTime,
-          gyroscope: {
-            // Fix: Use correct properties from the event
-            x: event.alpha || 0,
-            y: event.beta || 0,
-            z: event.gamma || 0,
-          },
-          magnetometer: {
-            x: event.alpha || 0,
-            y: event.beta || 0,
-            z: event.gamma || 0,
-          },
-        }));
-      });
-      
-      console.log("Motion listeners added successfully");
-    } catch (error) {
-      console.error('Error setting up motion sensors:', error);
     }
   }, []);
 
