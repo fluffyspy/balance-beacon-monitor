@@ -136,9 +136,10 @@ export const useSensors = () => {
           ...prev,
           timestamp: currentTime,
           gyroscope: {
-            x: event.rotationRate?.alpha || 0,
-            y: event.rotationRate?.beta || 0,
-            z: event.rotationRate?.gamma || 0,
+            // Fix: Use correct properties from the event
+            x: event.alpha || 0,
+            y: event.beta || 0,
+            z: event.gamma || 0,
           },
           magnetometer: {
             x: event.alpha || 0,
