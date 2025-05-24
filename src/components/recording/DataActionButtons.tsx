@@ -1,10 +1,9 @@
 
 import React from 'react';
 import { Button } from '@/components/ui/button';
-import { FileSpreadsheet, RefreshCcw, CheckCircle2, Download } from 'lucide-react';
+import { FileSpreadsheet, RefreshCcw, CheckCircle2 } from 'lucide-react';
 import { SensorData } from '@/hooks/useSensors';
 import { exportToCSV, analyzeBalance } from '@/utils/exportUtils';
-import { saveCSVToMobileStorage, formatDateForFilename } from '@/utils/fileStorage';
 import { useToast } from '@/hooks/use-toast';
 
 interface DataActionButtonsProps {
@@ -28,33 +27,8 @@ const DataActionButtons: React.FC<DataActionButtonsProps> = ({
     });
   };
 
-  const handleSaveToMobile = async () => {
-    const filename = formatDateForFilename();
-    const success = await saveCSVToMobileStorage(recordings, filename);
-    
-    if (success) {
-      toast({
-        title: "File Saved",
-        description: `Balance data saved to device storage: ${filename}`,
-      });
-    } else {
-      toast({
-        title: "Save Failed",
-        description: "Could not save file to device storage",
-        variant: "destructive",
-      });
-    }
-  };
-
   return (
     <>
-      <Button 
-        onClick={handleSaveToMobile}
-        variant="default"
-        className="bg-green-600 hover:bg-green-700"
-      >
-        <Download className="w-4 h-4 mr-2" /> Save to Device
-      </Button>
       <Button 
         onClick={handleExportWeb}
         variant="outline"
