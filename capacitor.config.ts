@@ -3,7 +3,7 @@ import { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'app.lovable.1845f6ebc0ae4138ac358f1bafc9a317',
-  appName: 'balance-beacon-monitor',
+  appName: 'Balance',
   webDir: 'dist',
   plugins: {
     SplashScreen: {
@@ -16,13 +16,17 @@ const config: CapacitorConfig = {
       rotationRate: true,
     },
     Filesystem: {
-      // Configure filesystem access
       directory: 'Documents',
     },
-    Share: {
-      // Enable sharing functionality
-    }
   },
+  android: {
+    permissions: [
+      'android.permission.BODY_SENSORS',
+      'android.permission.ACTIVITY_RECOGNITION',
+      'android.permission.WRITE_EXTERNAL_STORAGE',
+      'android.permission.READ_EXTERNAL_STORAGE',
+    ]
+  }
 };
 
 export default config;
