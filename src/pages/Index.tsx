@@ -10,6 +10,7 @@ import {
   Activity
 } from "lucide-react";
 import { saveBalanceData } from "@/utils/balanceDataUtils";
+import { analyzeBalance } from "@/utils/exportUtils";
 import { useToast } from "@/hooks/use-toast";
 
 const Index = () => {
